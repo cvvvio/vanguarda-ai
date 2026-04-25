@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 
 # --- 1. CONFIGURAÇÃO ---
-CHAVE_API = "AIzaSyCheLzb_fsQSw6-Vz9jAVFIfrNmMRpF3ZE" 
+CHAVE_API = st.secrets["GEMINI_CHAVE"]
 genai.configure(api_key=CHAVE_API)
 
 # Função para encontrar o modelo que sua chave permite usar
