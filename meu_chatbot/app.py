@@ -20,32 +20,22 @@ def get_working_model():
 NOME_DO_MODELO = get_working_model()
 model = genai.GenerativeModel(NOME_DO_MODELO)
 
-# --- 2. INTERFACE ---
-st.set_page_config(page_title="Vanguarda AI", page_icon="📈")
-st.title("📈 Vanguarda: Assistente de Investimentos")
-st.write(f"Conectado via: `{NOME_DO_MODELO}`")
-
-if "mensagens" not in st.session_state:
-    st.session_state.mensagens = []
-
-for msg in st.session_state.mensagens:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-if prompt := st.chat_input("Diga algo..."):
-    st.session_state.mensagens.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
+# 2. IA gera a resposta
     with st.chat_message("assistant"):
-        try:
-            # Forçando o Chain of Thought e Contexto no prompt
-            instrucao = "Você é o Vanguarda. Use raciocínio lógico antes de responder."
-            contexto = "\n".join([f"{m['role']}: {m['content']}" for m in st.session_state.mensagens])
-            
-            response = model.generate_content(f"{instrucao}\n\n{contexto}")
-            
-            st.markdown(response.text)
-            st.session_state.mensagens.append({"role": "assistant", "content": response.text})
-        except Exception as e:
-            st.error(f"Erro persistente: {e}")
+        # O Spinner cria aquela animação de "carregando"
+        with st.spinner("Vanguarda está raciocinando..."):
+            try:
+                # Prepara o histórico para o Google
+                historico_google = []
+                for m in st.session_state.mensagens[:-1]:
+                    role = "user" if m["role"] == "user" else "model"
+                    historico_google.append({"role": role, "parts": [m["content"]]})
+                
+                chat = model.start_chat(history=historico_google)
+                response = chat.send_message(prompt)
+                
+                st.markdown(response.text)
+                st.session_state.mensagens.append({"role": "assistant", "content": response.text})
+                
+            except Exception as e:
+                st.error(f"Erro: {e}")
