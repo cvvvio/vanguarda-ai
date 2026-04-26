@@ -2,12 +2,12 @@ import streamlit as st
 import google.generativeai as genai
 
 # --- 1. CONFIGURAÇÃO DE SEGURANÇA E API ---
-# O Streamlit busca a chave nos Secrets para não expor no GitHub
 try:
+    # O Streamlit busca a chave nos Secrets para não expor no GitHub
     CHAVE_API = st.secrets["GEMINI_CHAVE"]
     genai.configure(api_key=CHAVE_API)
-except:
-    st.error("Erro: Chave API não encontrada nos Secrets do Streamlit.")
+except Exception:
+    st.error("Erro: Chave API não encontrada nos Secrets do Streamlit ou falha na configuração.")
     st.stop()
 
 # --- 2. PERSONALIDADE E CHAIN OF THOUGHT ---
@@ -18,23 +18,43 @@ Sua missão é ajudar o usuário a entender o mercado financeiro com lógica.
 DIFERENCIAL OBRIGATÓRIO (Chain of Thought):
 Antes de dar qualquer resposta final, você deve:
 1. Identificar o perfil de risco (Conservador, Moderado ou Arrojado).
-2. Analisar o cenário econômico (Ex: Selic alta favorece Renda Fixa).
+2. Analisar o cenário econômico atual de 2026.
 3. Explicar o RACIOCÍNIO por trás da sugestão.
 
 REGRAS: Nunca dê ordens de compra diretas. Foque em educação financeira.
 """
 
-# --- 3. INICIALIZAÇÃO DO MODELO ---
-# Usamos o 1.5 Flash pela velocidade na demonstração
-model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash',
-    system_instruction=INSTRUCAO_SISTEMA
-)
+# --- 3. INICIALIZAÇÃO DINÂMICA DO MODELO (FIM DO ERRO 404) ---
+@st.cache_resource
+def carregar_modelo():
+    try:
+        # Lista todos os modelos que sua chave tem permissão de usar
+        modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Tenta encontrar o Flash, se não achar, pega o Pro, se não, pega o primeiro da lista
+        modelo_escolhido = "models/gemini-1.5-flash" # Fallback padrão
+        for m in modelos:
+            if "gemini-1.5-flash" in m:
+                modelo_escolhido = m
+                break
+            elif "gemini-1.5-pro" in m:
+                modelo_escolhido = m
+        
+        return genai.GenerativeModel(
+            model_name=modelo_escolhido,
+            system_instruction=INSTRUCAO_SISTEMA
+        )
+    except Exception as e:
+        st.error(f"Erro ao detectar modelos: {e}")
+        return None
+
+model = carregar_modelo()
 
 # --- 4. INTERFACE E UX ---
 st.set_page_config(page_title="Vanguarda AI", page_icon="📈", layout="centered")
 st.title("📈 Vanguarda: Assistente de Investimentos")
 st.caption("Estratégia Financeira com Inteligência Artificial e Chain of Thought")
+st.markdown("---")
 
 # Inicializa o histórico de mensagens (Gestão de Contexto)
 if "mensagens" not in st.session_state:
@@ -61,7 +81,6 @@ if prompt := st.chat_input("Ex: Como a Selic alta afeta meus investimentos?"):
                 # Prepara o histórico para manter o contexto
                 historico_google = []
                 for m in st.session_state.mensagens[:-1]:
-                    # Converte o padrão do Streamlit para o padrão da API do Google
                     role_google = "user" if m["role"] == "user" else "model"
                     historico_google.append({"role": role_google, "parts": [m["content"]]})
                 
@@ -77,4 +96,4 @@ if prompt := st.chat_input("Ex: Como a Selic alta afeta meus investimentos?"):
                 
             except Exception as e:
                 st.error(f"Ocorreu um erro na geração: {e}")
-                st.info("Dica: Verifique se sua cota da API não expirou ou se a chave está correta.")
+                st.info("Verifique sua conexão ou se os limites da API foram atingidos.")
